@@ -13,16 +13,16 @@ IMAGE_CHANNELS = 1
 IMAGE_SIZE = (IMAGE_HEIGHT, IMAGE_WIDTH)
 
 # === Sequence Parameters ===
-SEQUENCE_LEN = 30  # Number of frames per sequence
+SEQUENCE_LEN = 50  # Number of frames per sequence
 
 # === Model Parameters ===
 FEATURE_DIM = 256         # Output feature size from CNN per frame
-TKAN_HIDDEN_DIM = 128     # Hidden size in TKAN layers
+TKAN_HIDDEN_DIM = 256     # Hidden size in TKAN layers
 NUM_CLASSES = 124         # Number of subjects in CASIA-B
 DROPOUT_RATE = 0.3        # Dropout rate between TKAN layers
 
 # === Training Parameters ===
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 EPOCHS = 50
 LEARNING_RATE = 1e-4
 

@@ -63,7 +63,7 @@ def build_tkan_block(input_shape, feature_dim, num_classes, dropout_rate):
 
     x = TKAN(
         feature_dim,
-        sub_kan_configs=['bspline_0', 'bspline_1', 'bspline_2', 'bspline_3', 'bspline_4'],
+        sub_kan_configs=[0, 1, 2, 3, 4],
         return_sequences=True,
         use_bias=True
     )(inputs)

@@ -1,74 +1,107 @@
 from tensorflow.keras import layers, models
-from tensorflow.keras.layers import TimeDistributed, GlobalAveragePooling1D
-from tkan import TKAN  # Make sure the TKAN package is installed: pip install tkan
+from tensorflow.keras.layers import (
+    Input, Conv2D, BatchNormalization, MaxPooling2D, GlobalAveragePooling2D,
+    Dense, Dropout, TimeDistributed, GlobalAveragePooling1D
+)
+from tkan import TKAN
+import config
 
-# ========================
-# CNN Encoder
-# ========================
-def build_cnn_encoder(input_shape=(64, 64, 1), feature_dim=128):
-    inputs = layers.Input(shape=input_shape)
+def build_cnn_encoder(input_shape=(64, 64, 1), feature_dim=256):
+    """
+    Builds a CNN encoder to process a single gait frame.
+
+    Args:
+        input_shape: shape of one input frame (H, W, C).
+        feature_dim: output dimensionality of the CNN per frame.
+
+    Returns:
+        Keras Model that outputs a feature vector per frame.
+    """
+    inputs = Input(shape=input_shape)
 
     # Conv Block 1
-    x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D((2, 2))(x)
+    x = Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
+    x = BatchNormalization()(x)
+    x = MaxPooling2D((2, 2))(x)
 
     # Conv Block 2
-    x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D((2, 2))(x)
+    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = MaxPooling2D((2, 2))(x)
 
     # Conv Block 3
-    x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D((2, 2))(x)
+    x = Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = MaxPooling2D((2, 2))(x)
 
     # Conv Block 4
-    x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.GlobalAveragePooling2D()(x)
+    x = Conv2D(256, (3, 3), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = GlobalAveragePooling2D()(x)
 
-    # Final Dense projection
-    x = layers.Dense(feature_dim, activation='relu')(x)
+    # Final dense projection
+    x = Dense(feature_dim, activation='relu')(x)
 
-    return models.Model(inputs, x, name='cnn_encoder')
+    model = models.Model(inputs, x, name="cnn_encoder")
+    return model
 
-# ========================
-# Full Model: CNN + TKAN
-# ========================
-def build_gait_model(
-    time_steps=30, 
-    frame_shape=(64, 64, 1), 
-    feature_dim=128, 
-    num_classes=74, 
-    dropout_rate=0.3
-):
+
+def build_tkan_block(input_shape, feature_dim, num_classes, dropout_rate):
     """
-    Constructs the full gait recognition model using CNN + TKAN.
+    Builds the temporal TKAN-based classification block.
+
+    Args:
+        input_shape: tuple, e.g. (time_steps, feature_dim)
+        feature_dim: internal TKAN hidden size
+        num_classes: output class count (e.g. CASIA-B identities)
+        dropout_rate: dropout probability
+
+    Returns:
+        Keras Model that maps a sequence of vectors to a class score
     """
+    inputs = Input(shape=input_shape, name="tkan_input")
 
-    # Input: sequence of frames
-    video_input = layers.Input(shape=(time_steps, *frame_shape), name="video_input")
-
-    # CNN per frame
-    cnn_encoder = build_cnn_encoder(input_shape=frame_shape, feature_dim=feature_dim)
-    x = TimeDistributed(cnn_encoder)(video_input)  # shape: (batch, time_steps, feature_dim)
-
-    # TKAN Temporal modeling
     x = TKAN(
         feature_dim,
         sub_kan_configs=['bspline_0', 'bspline_1', 'bspline_2', 'bspline_3', 'bspline_4'],
         return_sequences=True,
         use_bias=True
-    )(x)
-    x = layers.Dropout(dropout_rate)(x)
+    )(inputs)
 
-    # Temporal pooling (preserve full sequence info)
+    x = Dropout(dropout_rate)(x)
     x = GlobalAveragePooling1D()(x)
+    x = Dropout(dropout_rate)(x)
 
-    # Final classifier
-    x = layers.Dropout(dropout_rate)(x)
-    identity_output = layers.Dense(num_classes, activation='softmax', name="identity_output")(x)
+    outputs = Dense(num_classes, activation='softmax', name="identity_output")(x)
+    return models.Model(inputs, outputs, name="tkan_classifier")
 
-    model = models.Model(inputs=video_input, outputs=identity_output, name="Gait_TKAN_Model")
-    return model
+
+def build_model():
+    """
+    Full end-to-end gait recognition model using CNN + TKAN.
+
+    Returns:
+        Compiled Keras Model.
+    """
+    sequence_input = Input(
+        shape=(config.SEQUENCE_LEN, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS),
+        name="sequence_input"
+    )
+
+    # CNN applied per frame
+    cnn_encoder = build_cnn_encoder(
+        input_shape=(config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS),
+        feature_dim=config.FEATURE_DIM
+    )
+    x = TimeDistributed(cnn_encoder)(sequence_input)  # shape: (batch, time, feature_dim)
+
+    # TKAN block for temporal modeling
+    tkan_block = build_tkan_block(
+        input_shape=(config.SEQUENCE_LEN, config.FEATURE_DIM),
+        feature_dim=config.TKAN_HIDDEN_DIM,
+        num_classes=config.NUM_CLASSES,
+        dropout_rate=config.DROPOUT_RATE
+    )
+    output = tkan_block(x)
+
+    return models.Model(inputs=sequence_input, outputs=output, name="CNN_TKAN_GaitModel")

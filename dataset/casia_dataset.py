@@ -8,8 +8,8 @@ TIME_STEPS = 50  # Trim or pad to fixed length
 
 def load_sequence_images(seq_path):
     """
-    Loads and processes silhouette frames from a sequence folder.
-    Returns a (TIME_STEPS, 64, 64, 1) array.
+    #Loads and processes silhouette frames from a sequence folder.
+    #Returns a (TIME_STEPS, 64, 64, 1) array.
     """
     frame_files = sorted(f for f in os.listdir(seq_path) if f.endswith('.png'))
     frames = []
@@ -34,8 +34,8 @@ def load_sequence_images(seq_path):
 
 def split_sequences_by_condition(subject_path):
     """
-    Splits nm, bg, cl sequences into train/test per rule.
-    Returns: {'train': [seq_names], 'test': [seq_names]}
+    #Splits nm, bg, cl sequences into train/test per rule.
+    #Returns: {'train': [seq_names], 'test': [seq_names]}
     """
     sequences = {'nm': [], 'bg': [], 'cl': []}
     for seq_name in os.listdir(subject_path):
@@ -59,7 +59,7 @@ def split_sequences_by_condition(subject_path):
 
 def load_casia_dataset(split_dir):
     """
-    Loads one split (train or test) from CASIA-B dataset with angles.
+    #Loads one split (train or test) from CASIA-B dataset with angles.
     Returns: X, y
     """
     X, y = [], []

@@ -78,7 +78,7 @@ import seaborn as sns
 import config
 from model.cnn_encoder import build_cnn_encoder
 from model.tkan import build_tkan_classifier
-from dataset.casia_dataset import load_gallery_and_probe
+from dataset.casia_dataset_test import load_gallery_and_probe
 
 # === CONFIGURE CHECKPOINT HERE ===
 CHECKPOINT_PATH = "/content/Keras_Gait/casia-b/checkpoints/epoch_50.keras"

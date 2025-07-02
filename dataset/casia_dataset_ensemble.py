@@ -84,3 +84,19 @@ def load_casia_dataset_all(data_root="output", subject_ids=None, conditions=None
     X = np.array(X)
     y = np.array(y)
     return X, y
+
+def load_dataset(train_path, test_path, sequence_len, image_size):
+    """
+    Wrapper to load train and test sets using config values.
+    """
+    X_train, y_train = load_casia_dataset_all(
+        data_root=train_path,
+        img_size=image_size,
+        max_frames=sequence_len
+    )
+    X_test, y_test = load_casia_dataset_all(
+        data_root=test_path,
+        img_size=image_size,
+        max_frames=sequence_len
+    )
+    return X_train, y_train, X_test, y_test

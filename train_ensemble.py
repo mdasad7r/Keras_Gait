@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from sklearn.utils.class_weight import compute_class_weight
 from model.ensemble_tkan import build
-from casia_dataset_protocol import load_dataset
+from casia_dataset_ensemble import load_dataset
 import config
 
 # === Strategy (optional for Colab TPU/GPU) ===

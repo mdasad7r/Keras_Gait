@@ -2,9 +2,14 @@ import os
 import numpy as np
 import cv2
 from tqdm import tqdm
+from config import SEQUENCE_LEN
 
-def load_sequence(sequence_path, img_size=(64, 64), max_frames=30):
-    """Load a sequence of silhouette frames from a view folder."""
+
+def load_sequence(sequence_path, img_size=(64, 64), max_frames=SEQUENCE_LEN):
+    """
+    Load a silhouette sequence from a view folder. Pads with zeros if fewer than max_frames.
+    Returns: (T, H, W, 1)
+    """
     frames = sorted(os.listdir(sequence_path))[:max_frames]
     sequence = []
 
@@ -20,16 +25,32 @@ def load_sequence(sequence_path, img_size=(64, 64), max_frames=30):
         return None
 
     sequence = np.stack(sequence, axis=0)  # (T, H, W)
+
+    # Pad if sequence is shorter than max_frames
+    if sequence.shape[0] < max_frames:
+        pad_len = max_frames - sequence.shape[0]
+        pad_shape = (pad_len, *sequence.shape[1:])
+        pad = np.zeros(pad_shape, dtype=sequence.dtype)
+        sequence = np.concatenate([sequence, pad], axis=0)
+
     return np.expand_dims(sequence, axis=-1)  # (T, H, W, 1)
 
+
 def load_casia_dataset_all(data_root="output", subject_ids=None, conditions=None,
-                           img_size=(64, 64), max_frames=30):
+                           img_size=(64, 64), max_frames=SEQUENCE_LEN):
     """
-    Load CASIA-B sequences based on subject and condition.
-    
+    Load CASIA-B dataset as sequences.
+
+    Args:
+        data_root: base directory of dataset (e.g., casia-b/train/output)
+        subject_ids: optional list of subject IDs to include
+        conditions: optional list of condition folder names (e.g., ["nm-01", "cl-02"])
+        img_size: output image size
+        max_frames: number of frames per sequence (defaults to config)
+
     Returns:
-        X: np.array (N, T, H, W, 1)
-        y: np.array (N,)
+        X: np.array of shape (N, T, H, W, 1)
+        y: np.array of subject IDs (N,)
     """
     X = []
     y = []
@@ -50,7 +71,7 @@ def load_casia_dataset_all(data_root="output", subject_ids=None, conditions=None
                 continue
 
             cond_path = os.path.join(sid_path, condition)
-            for view in os.listdir(cond_path):
+            for view in sorted(os.listdir(cond_path)):
                 view_path = os.path.join(cond_path, view)
                 if not os.path.isdir(view_path):
                     continue

@@ -10,16 +10,11 @@ import config
 
 
 def build_spatial_encoder(base_model_class, input_shape=(64, 64, 1), projection_dim=256):
-    """
-    Builds a CNN-based spatial encoder for grayscale input.
-    """
     inp = Input(shape=input_shape)
-    x = layers.Conv2D(3, (3, 3), padding='same')(inp)  # simulate RGB if needed
-    base = base_model_class(include_top=False, weights=None, input_tensor=x)
-    x = GlobalAveragePooling2D()(base.output)
+    x = base_model_class(include_top=False, weights=None, input_shape=input_shape)(inp)
+    x = GlobalAveragePooling2D()(x)
     x = Dense(projection_dim)(x)
     return Model(inp, x)
-
 
 def build_model(input_shape=(50, 64, 64, 1),
                 feature_dim=256,

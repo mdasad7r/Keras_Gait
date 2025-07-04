@@ -2,7 +2,7 @@ import os
 import shutil
 
 # === Original unstructured dataset path ===
-SOURCE_PATH = "casia-b/output"
+SOURCE_PATH = "CASIA_B/output"
 
 # === Structured destination paths ===
 TRAIN_PATH = "casia-b/train/output"

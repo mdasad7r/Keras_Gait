@@ -22,7 +22,7 @@ NUM_CLASSES = 124              # Number of subjects in CASIA-B
 DROPOUT_RATE = 0.3             # Dropout after encoders and TKAN
 
 # === Training Parameters ===
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 EPOCHS = 50
 LEARNING_RATE = 1e-4
 

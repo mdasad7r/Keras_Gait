@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from config import SEQUENCE_LEN, POSE_FEATURE_DIM, CNN_HEIGHT, CNN_WIDTH
+from config_pose import SEQUENCE_LEN, POSE_FEATURE_DIM, CNN_HEIGHT, CNN_WIDTH
 
 
 def load_pose_sequence(pkl_path, max_frames=SEQUENCE_LEN, pose_dim=POSE_FEATURE_DIM,

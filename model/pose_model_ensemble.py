@@ -1,16 +1,16 @@
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import (
+from keras.models import Model
+from keras.layers import (
     Input, Dense, Dropout, GlobalAveragePooling2D, GlobalAveragePooling1D,
     Concatenate, TimeDistributed, Lambda
 )
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras import layers
+from keras.applications import ResNet50, ResNet101
+from keras import layers
 import tensorflow as tf
 from tkan import TKAN
-import config
+import config, config_pose
 
-# === Optional: Replace with your ResNet18 source ===
-from keras_resnet.models import ResNet18
+# Remove the problematic ResNet18 import
+# from keras_resnet.models import ResNet18
 
 
 # === Custom CNN encoder ===
@@ -37,8 +37,14 @@ def build_custom_cnn_encoder(input_shape=(8, 8, 1), feature_dim=config.FEATURE_D
 # === Pretrained ResNet encoder ===
 def build_spatial_encoder(base_model_class, input_shape=(8, 8, 3), projection_dim=config.FEATURE_DIM):
     inp = Input(shape=input_shape)
-    base_model = base_model_class(include_top=False, weights='imagenet', input_shape=input_shape)
-    x = base_model(inp)
+    
+    # Upsample 8x8 to 32x32 to meet ResNet minimum input size requirement
+    x = Lambda(lambda x: tf.image.resize(x, (32, 32), method='bilinear'))(inp)
+    
+    # Standard Keras applications models (ResNet50, ResNet101)
+    base_model = base_model_class(include_top=False, weights='imagenet', input_shape=(32, 32, 3))
+    x = base_model(x)
+    
     x = GlobalAveragePooling2D()(x)
     x = Dense(projection_dim)(x)
     return Model(inp, x)
@@ -46,7 +52,7 @@ def build_spatial_encoder(base_model_class, input_shape=(8, 8, 3), projection_di
 
 # === Final model ===
 def build_model(sequence_len=config.SEQUENCE_LEN,
-                pose_feature_dim=config.POSE_FEATURE_DIM,
+                pose_feature_dim=config_pose.POSE_FEATURE_DIM,
                 cnn_input_shape=(8, 8, 1),
                 resnet_input_shape=(8, 8, 3),
                 feature_dim=config.FEATURE_DIM,
@@ -54,7 +60,7 @@ def build_model(sequence_len=config.SEQUENCE_LEN,
                 num_classes=config.NUM_CLASSES,
                 dropout_rate=config.DROPOUT_RATE):
     """
-    Model: Custom CNN + ResNet18 + ResNet50 -> TKAN
+    Model: Custom CNN + ResNet101 + ResNet50 -> TKAN
     Input shape: (T, 8, 8, 1)
     """
 
@@ -66,7 +72,7 @@ def build_model(sequence_len=config.SEQUENCE_LEN,
 
     # === Encoders ===
     custom_cnn = build_custom_cnn_encoder(input_shape=cnn_input_shape)
-    resnet18 = build_spatial_encoder(ResNet18, input_shape=resnet_input_shape)
+    resnet18 = build_spatial_encoder(ResNet101, input_shape=resnet_input_shape)
     resnet50 = build_spatial_encoder(ResNet50, input_shape=resnet_input_shape)
 
     # === Apply TimeDistributed ===
@@ -80,7 +86,7 @@ def build_model(sequence_len=config.SEQUENCE_LEN,
 
     # === TKAN ===
     x = TKAN(
-        output_dim=tkan_hidden_dim,
+        units=tkan_hidden_dim,
         sub_kan_configs=[0, 1, 2, 3, 4],
         return_sequences=True,
         use_bias=True

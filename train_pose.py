@@ -1,19 +1,9 @@
 import os
 import tensorflow as tf
 from config_pose import *
-from dataset.casia_pose import load_casia_pose_dataset
+from dataset.casia_pose import build_casia_pose_dataset
 from model.pose_model_ensemble import build
 
-
-def preprocess_for_model(X):
-    X = X.astype('float32') / 255.0
-    return tf.convert_to_tensor(X)
-
-def prepare_dataset(X, y, batch_size=BATCH_SIZE, shuffle=True):
-    dataset = tf.data.Dataset.from_tensor_slices((X, y))
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=len(X))
-    return dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
 class EpochSaver(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
@@ -22,18 +12,11 @@ class EpochSaver(tf.keras.callbacks.Callback):
             self.model.save(path)
             print(f"💾 Model saved at: {path}")
 
+
 def main():
-    print("📦 Loading dataset...")
-    X_train, y_train = load_casia_pose_dataset(TRAIN_PATH)
-    X_test, y_test = load_casia_pose_dataset(TEST_PATH)
-
-    print("🧼 Preprocessing...")
-    X_train = preprocess_for_model(X_train)
-    X_test = preprocess_for_model(X_test)
-
-    print("📊 Creating tf.data.Dataset...")
-    train_ds = prepare_dataset(X_train, y_train)
-    test_ds = prepare_dataset(X_test, y_test, shuffle=False)
+    print("📦 Building lazy-loading datasets...")
+    train_ds = build_casia_pose_dataset(TRAIN_PATH, batch_size=BATCH_SIZE, shuffle=True)
+    test_ds = build_casia_pose_dataset(TEST_PATH, batch_size=BATCH_SIZE, shuffle=False)
 
     print("🏗 Building model...")
     model = build()

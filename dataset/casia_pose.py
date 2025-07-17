@@ -1,7 +1,7 @@
 import os
 import pickle
 import numpy as np
-from tqdm import tqdm
+import tensorflow as tf
 from config_pose import SEQUENCE_LEN, POSE_FEATURE_DIM, CNN_HEIGHT, CNN_WIDTH
 
 
@@ -38,19 +38,14 @@ def load_pose_sequence(pkl_path, max_frames=SEQUENCE_LEN, pose_dim=POSE_FEATURE_
         frame_2d = frame.reshape(reshape_to + (1,))  # (8, 8, 1)
         padded_seq.append(frame_2d)
 
-    return np.array(padded_seq)  # shape: (T, 8, 8, 1)
+    return np.array(padded_seq, dtype=np.float32)  # shape: (T, 8, 8, 1)
 
 
-def load_casia_pose_dataset(data_root, max_frames=SEQUENCE_LEN, pose_dim=POSE_FEATURE_DIM):
+def casia_pose_generator(data_root, max_frames=SEQUENCE_LEN, pose_dim=POSE_FEATURE_DIM):
     """
-    Loads all .pkl pose sequences from CASIA-B_HRNet structure.
-    Returns:
-        X: (N, T, H, W, 1)
-        y: (N,)
+    Generator that yields (pose_sequence, label) for each .pkl file
     """
-    X, y = [], []
-
-    for sid in tqdm(sorted(os.listdir(data_root)), desc="Loading subjects"):
+    for sid in sorted(os.listdir(data_root)):
         sid_path = os.path.join(data_root, sid)
         if not os.path.isdir(sid_path) or not sid.isdigit():
             continue
@@ -71,10 +66,27 @@ def load_casia_pose_dataset(data_root, max_frames=SEQUENCE_LEN, pose_dim=POSE_FE
                         pkl_path = os.path.join(seq_path, file)
                         try:
                             sequence = load_pose_sequence(pkl_path, max_frames=max_frames, pose_dim=pose_dim)
-                            X.append(sequence)
-                            y.append(label)
+                            yield sequence, label
                         except Exception as e:
                             print(f"Error loading {pkl_path}: {e}")
                         break  # one .pkl per folder
 
-    return np.array(X), np.array(y)
+
+def build_casia_pose_dataset(data_root, batch_size=16, shuffle=True):
+    """
+    Returns a tf.data.Dataset that yields (pose_sequence, label) batches lazily.
+    """
+    output_types = (tf.float32, tf.int32)
+    output_shapes = ((SEQUENCE_LEN, CNN_HEIGHT, CNN_WIDTH, 1), ())
+
+    ds = tf.data.Dataset.from_generator(
+        lambda: casia_pose_generator(data_root),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
+
+    if shuffle:
+        ds = ds.shuffle(1000)
+
+    ds = ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    return ds

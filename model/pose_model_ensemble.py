@@ -3,14 +3,11 @@ from keras.layers import (
     Input, Dense, Dropout, GlobalAveragePooling2D, GlobalAveragePooling1D,
     Concatenate, TimeDistributed, Lambda
 )
-from keras.applications import ResNet50, ResNet101
+from keras.applications import ResNet50
 from keras import layers
 import tensorflow as tf
 from tkan import TKAN
 import config, config_pose
-
-# Remove the problematic ResNet18 import
-# from keras_resnet.models import ResNet18
 
 
 # === Custom CNN encoder ===
@@ -34,25 +31,21 @@ def build_custom_cnn_encoder(input_shape=(8, 8, 1), feature_dim=config.FEATURE_D
     return Model(inp, x, name="custom_cnn_encoder")
 
 
-# === Pretrained ResNet encoder ===
-def build_spatial_encoder(base_model_class, input_shape=(8, 8, 3), projection_dim=config.FEATURE_DIM):
+# === ResNet50-based encoder ===
+def build_resnet50_encoder(input_shape=(8, 8, 3), projection_dim=config.FEATURE_DIM):
     inp = Input(shape=input_shape)
-    
-    # Upsample 8x8 to 32x32 to meet ResNet minimum input size requirement
     x = Lambda(lambda x: tf.image.resize(x, (32, 32), method='bilinear'))(inp)
-    
-    # Standard Keras applications models (ResNet50, ResNet101)
-    base_model = base_model_class(include_top=False, weights='imagenet', input_shape=(32, 32, 3))
+
+    base_model = ResNet50(include_top=False, weights='imagenet', input_shape=(32, 32, 3))
     x = base_model(x)
-    
     x = GlobalAveragePooling2D()(x)
     x = Dense(projection_dim)(x)
-    return Model(inp, x)
+
+    return Model(inp, x, name="resnet50_encoder")
 
 
-# === Final model ===
+# === Full Model ===
 def build_model(sequence_len=config.SEQUENCE_LEN,
-                pose_feature_dim=config_pose.POSE_FEATURE_DIM,
                 cnn_input_shape=(8, 8, 1),
                 resnet_input_shape=(8, 8, 3),
                 feature_dim=config.FEATURE_DIM,
@@ -60,29 +53,24 @@ def build_model(sequence_len=config.SEQUENCE_LEN,
                 num_classes=config.NUM_CLASSES,
                 dropout_rate=config.DROPOUT_RATE):
     """
-    Model: Custom CNN + ResNet101 + ResNet50 -> TKAN
-    Input shape: (T, 8, 8, 1)
+    Model: Custom CNN + ResNet50 → TKAN
+    Input: (T, 8, 8, 1)
     """
-
-    # Input: (T, 8, 8, 1) — per-frame grayscale pseudo-image
     seq_input = Input(shape=(sequence_len, *cnn_input_shape), name="input_sequence")
 
-    # Expand to 3 channels for ResNet
+    # ResNet input (repeat grayscale to 3 channels)
     resnet_input = Lambda(lambda x: tf.repeat(x, repeats=3, axis=-1))(seq_input)
 
     # === Encoders ===
-    custom_cnn = build_custom_cnn_encoder(input_shape=cnn_input_shape)
-    resnet18 = build_spatial_encoder(ResNet101, input_shape=resnet_input_shape)
-    resnet50 = build_spatial_encoder(ResNet50, input_shape=resnet_input_shape)
+    cnn_encoder = build_custom_cnn_encoder(input_shape=cnn_input_shape)
+    resnet_encoder = build_resnet50_encoder(input_shape=resnet_input_shape)
 
-    # === Apply TimeDistributed ===
-    cnn_out = TimeDistributed(custom_cnn)(seq_input)
-    r18_out = TimeDistributed(resnet18)(resnet_input)
-    r50_out = TimeDistributed(resnet50)(resnet_input)
+    cnn_features = TimeDistributed(cnn_encoder)(seq_input)         # (T, 256)
+    resnet_features = TimeDistributed(resnet_encoder)(resnet_input)  # (T, 256)
 
-    # === Concatenate encoder outputs ===
-    fused = Concatenate()([cnn_out, r18_out, r50_out])  # shape: (T, 768)
-    fused_proj = Dense(feature_dim)(fused)              # reduce to (T, 256)
+    # === Feature Fusion ===
+    fused = Concatenate()([cnn_features, resnet_features])  # (T, 512)
+    fused_proj = Dense(feature_dim)(fused)  # Project to (T, 256)
 
     # === TKAN ===
     x = TKAN(
@@ -97,7 +85,7 @@ def build_model(sequence_len=config.SEQUENCE_LEN,
     x = Dropout(dropout_rate)(x)
     out = Dense(num_classes, activation='softmax', name="identity_output")(x)
 
-    return Model(seq_input, out, name="ensemble_pose_tkan_model")
+    return Model(seq_input, out, name="pose_dual_encoder_tkan_model")
 
 
 # Entrypoint for training

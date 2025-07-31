@@ -11,8 +11,8 @@ from sklearn.utils.class_weight import compute_class_weight
 
 # === Load configs and model ===
 import config
-from model.resnet50_tkan import build_model  # 🔄 updated import
-from dataset.casia_dataset import load_casia_dataset  # should support train_conditions param
+from model.cnn_tkan import build_model  # 🔄 updated import
+from dataset.casia_dataset_all import load_casia_dataset  # should support train_conditions param
 
 # === Load dataset: Train on nm#01-04, bg#01, cl#01 ===
 train_conditions = ["nm-01", "nm-02", "nm-03", "nm-04", "bg-01", "cl-01"]
